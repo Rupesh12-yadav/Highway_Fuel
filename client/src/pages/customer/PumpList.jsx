@@ -4,6 +4,7 @@ import { fetchPumps } from '../../redux/slices/pumpSlice';
 import PumpCard from '../../components/customer/PumpCard';
 import RealPumpCard from '../../components/customer/RealPumpCard';
 import Loader from '../../components/common/Loader';
+import LocationPopup from '../../components/common/LocationPopup';
 import { FiSearch, FiNavigation, FiMapPin, FiRefreshCw, FiInfo } from 'react-icons/fi';
 import { locationService, getCurrentLocation } from '../../services/locationService';
 import { toast } from 'react-hot-toast';
@@ -24,6 +25,10 @@ export default function PumpList() {
 
   const [tab, setTab] = useState('nearby');
 
+  // Popup state
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupLoading, setPopupLoading] = useState(false);
+
   // Nearby GPS state
   const [userLocation, setUserLocation] = useState(null);
   const [radius, setRadius] = useState(5000);
@@ -41,9 +46,11 @@ export default function PumpList() {
   const [filters, setFilters] = useState({ city: '', highway: '', fuelType: '' });
   const [page, setPage] = useState(1);
 
-  // On mount auto-detect location
+  // On mount - show popup if location not yet taken
   useEffect(() => {
-    handleDetectLocation();
+    if (tab === 'nearby' && !userLocation) {
+      setShowPopup(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -56,15 +63,41 @@ export default function PumpList() {
     }
   }, [userLocation, radius]);
 
+  // User clicks "Allow" in popup
+  const handlePopupAllow = async () => {
+    setPopupLoading(true);
+    setLocationError('');
+    try {
+      const pos = await getCurrentLocation();
+      setUserLocation(pos);
+      setShowPopup(false);
+      toast.success('📍 Location mil gayi! Pumps fetch ho rahe hain...');
+    } catch (err) {
+      setLocationError(err.message);
+      setShowPopup(false);
+      toast.error('Location access denied');
+    } finally {
+      setPopupLoading(false);
+    }
+  };
+
+  // User clicks "Abhi Nahi" in popup
+  const handlePopupDeny = () => {
+    setShowPopup(false);
+    setTab('city');
+    toast('City Search use karo ⬆️', { icon: '🏙️' });
+  };
+
   const handleDetectLocation = async () => {
     setLocationError('');
     setRealLoading(true);
     try {
       const pos = await getCurrentLocation();
       setUserLocation(pos);
-      toast.success('📍 Location detected!');
+      toast.success('📍 Location updated!');
     } catch (err) {
       setLocationError(err.message);
+      toast.error('Location access denied');
     } finally {
       setRealLoading(false);
     }
@@ -110,6 +143,16 @@ export default function PumpList() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+
+      {/* ══ LOCATION PERMISSION POPUP ══ */}
+      {showPopup && (
+        <LocationPopup
+          onAllow={handlePopupAllow}
+          onDeny={handlePopupDeny}
+          loading={popupLoading}
+        />
+      )}
+
       {/* Page Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">⛽ Find Petrol Pumps</h1>
@@ -125,8 +168,8 @@ export default function PumpList() {
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit flex-wrap">
         {[
           { key: 'nearby', label: '📍 Near Me (GPS)' },
-          { key: 'city',   label: '🏙️ City Search' },
-          { key: 'db',     label: '🗄️ Our Pumps (DB)' },
+          { key: 'city', label: '🏙️ City Search' },
+          { key: 'db', label: '🗄️ Our Pumps (DB)' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
@@ -152,7 +195,8 @@ export default function PumpList() {
               <>
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-gray-500 whitespace-nowrap">Radius:</label>
-                  <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  <select
+                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     value={radius} onChange={e => setRadius(Number(e.target.value))}>
                     {RADIUS_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                   </select>
@@ -180,36 +224,53 @@ export default function PumpList() {
               <div>
                 <p className="text-amber-800 font-medium text-sm">Location Access Failed</p>
                 <p className="text-amber-700 text-xs mt-0.5">{locationError}</p>
-                <p className="text-gray-500 text-xs mt-1">
-                  Browser mein location allow karo, ya <button onClick={() => setTab('city')}
-                    className="text-primary font-medium underline">City Search</button> use karo.
-                </p>
+                <div className="flex gap-2 mt-2">
+                  <button onClick={() => setShowPopup(true)}
+                    className="text-xs bg-primary text-white px-3 py-1 rounded-lg">
+                    Dobara Try Karo
+                  </button>
+                  <button onClick={() => setTab('city')}
+                    className="text-xs border border-gray-300 text-gray-600 px-3 py-1 rounded-lg">
+                    City Search Use Karo
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {/* Results */}
           {realLoading ? (
-            <Loader text="Nearby petrol pumps OpenStreetMap se fetch ho rahi hain..." />
+            <div className="text-center py-20">
+              <div className="h-14 w-14 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-gray-600 font-medium">Aapke aas-paas ke pumps dhoondh rahe hain...</p>
+              <p className="text-gray-400 text-sm mt-1">OpenStreetMap se live data aa raha hai ⛽</p>
+            </div>
           ) : !userLocation && !locationError ? (
             <div className="text-center py-20 text-gray-400">
               <FiNavigation size={52} className="mx-auto mb-4 text-primary opacity-40" />
-              <p className="text-lg font-medium text-gray-600">Location detect ho rahi hai...</p>
-              <p className="text-sm mt-1">Browser popup mein "Allow" click karo</p>
+              <p className="text-lg font-medium text-gray-600">Location Permission Chahiye</p>
+              <p className="text-sm mt-1 mb-5">Nearby pumps dikhane ke liye location allow karo</p>
+              <button onClick={() => setShowPopup(true)} className="btn-primary flex items-center gap-2 mx-auto">
+                <FiNavigation size={15} /> Location Allow Karo
+              </button>
             </div>
           ) : realPumps.length === 0 && userLocation ? (
             <div className="text-center py-16 text-gray-400">
               <span className="text-5xl block mb-3">⛽</span>
               <p className="font-medium text-gray-600">{radius / 1000}km mein koi pump nahi mila</p>
               <p className="text-sm mt-1 mb-4">Radius badhao ya city search try karo</p>
-              <button onClick={() => setRadius(10000)} className="btn-primary text-sm">
+              <button onClick={() => setRadius(10000)} className="btn-primary text-sm mx-auto">
                 Radius 10km kar do
               </button>
             </div>
           ) : (
             <>
               <ResultHeader count={realPumps.length} suffix={`within ${radius / 1000}km`} />
-              <PumpGrid pumps={realPumps} userLocation={userLocation} isReal />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {realPumps.map(pump => (
+                  <RealPumpCard key={pump.osm_id} pump={pump} userLocation={userLocation} />
+                ))}
+              </div>
             </>
           )}
         </div>
@@ -218,13 +279,13 @@ export default function PumpList() {
       {/* ══════════ TAB 2 - CITY SEARCH ══════════ */}
       {tab === 'city' && (
         <div>
-          {/* Search Bar */}
           <form onSubmit={(e) => { e.preventDefault(); handleCitySearch(); }}
             className="bg-white border border-gray-100 rounded-xl p-4 mb-4 shadow-sm flex gap-3">
             <div className="relative flex-1">
               <FiMapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="City ka naam likho (e.g. Delhi, Jaipur, Lucknow)..."
+              <input
+                className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="City ka naam likho (e.g. Delhi, Jaipur, Mumbai)..."
                 value={cityInput} onChange={e => setCityInput(e.target.value)} />
             </div>
             <button type="submit" className="btn-primary text-sm flex items-center gap-2">
@@ -232,7 +293,6 @@ export default function PumpList() {
             </button>
           </form>
 
-          {/* Popular Cities */}
           {!cityResult && (
             <div className="mb-5">
               <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">Popular Cities</p>
@@ -255,10 +315,14 @@ export default function PumpList() {
               {cityPumps.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <span className="text-4xl block mb-3">🏙️</span>
-                  <p>Is city mein OpenStreetMap pe koi pump registered nahi hai</p>
+                  <p>Is city mein koi pump nahi mila</p>
                 </div>
               ) : (
-                <PumpGrid pumps={cityPumps} userLocation={null} isReal />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {cityPumps.map(pump => (
+                    <RealPumpCard key={pump.osm_id} pump={pump} userLocation={null} />
+                  ))}
+                </div>
               )}
             </>
           ) : null}
@@ -276,13 +340,15 @@ export default function PumpList() {
           <form onSubmit={handleDbSearch}
             className="bg-white border border-gray-100 rounded-xl p-4 mb-5 shadow-sm flex flex-wrap gap-3">
             <input className="input flex-1 min-w-32 text-sm" placeholder="City..."
-              value={filters.city} onChange={e => setFilters({...filters, city: e.target.value})} />
+              value={filters.city} onChange={e => setFilters({ ...filters, city: e.target.value })} />
             <input className="input flex-1 min-w-32 text-sm" placeholder="Highway (NH48)..."
-              value={filters.highway} onChange={e => setFilters({...filters, highway: e.target.value})} />
+              value={filters.highway} onChange={e => setFilters({ ...filters, highway: e.target.value })} />
             <select className="input w-36 text-sm" value={filters.fuelType}
-              onChange={e => setFilters({...filters, fuelType: e.target.value})}>
+              onChange={e => setFilters({ ...filters, fuelType: e.target.value })}>
               <option value="">All Fuels</option>
-              {['petrol','diesel','cng','ev'].map(f => <option key={f} value={f}>{f.toUpperCase()}</option>)}
+              {['petrol', 'diesel', 'cng', 'ev'].map(f => (
+                <option key={f} value={f}>{f.toUpperCase()}</option>
+              ))}
             </select>
             <button type="submit" className="btn-primary text-sm flex items-center gap-2">
               <FiSearch size={14} /> Search
@@ -321,8 +387,6 @@ export default function PumpList() {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────
-
 function ResultHeader({ count, suffix }) {
   return (
     <div className="flex items-center justify-between mb-4">
@@ -332,18 +396,6 @@ function ResultHeader({ count, suffix }) {
       <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded-full font-medium">
         🗺️ OpenStreetMap Live Data
       </span>
-    </div>
-  );
-}
-
-function PumpGrid({ pumps, userLocation, isReal }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-      {pumps.map(pump =>
-        isReal
-          ? <RealPumpCard key={pump.osm_id} pump={pump} userLocation={userLocation} />
-          : <PumpCard key={pump._id} pump={pump} />
-      )}
     </div>
   );
 }
