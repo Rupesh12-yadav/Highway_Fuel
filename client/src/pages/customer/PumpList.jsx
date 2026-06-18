@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { fetchPumps } from '../../redux/slices/pumpSlice';
 import PumpCard from '../../components/customer/PumpCard';
 import RealPumpCard from '../../components/customer/RealPumpCard';
@@ -22,6 +23,7 @@ const POPULAR_CITIES = ['Delhi', 'Mumbai', 'Bangalore', 'Jaipur', 'Lucknow', 'Pu
 export default function PumpList() {
   const dispatch = useDispatch();
   const { pumps: dbPumps, loading: dbLoading, total } = useSelector(s => s.pumps);
+  const [searchParams] = useSearchParams();
 
   const [tab, setTab] = useState('nearby');
 
@@ -52,6 +54,15 @@ export default function PumpList() {
       setShowPopup(true);
     }
   }, []);
+
+  // Navbar search se ?city= param aaye to city tab pe switch karo
+  useEffect(() => {
+    const city = searchParams.get('city');
+    if (city) {
+      setTab('city');
+      handleCitySearch(city);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (tab === 'db') dispatch(fetchPumps({ ...filters, page }));
