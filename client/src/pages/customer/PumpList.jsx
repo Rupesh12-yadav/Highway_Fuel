@@ -71,7 +71,8 @@ export default function PumpList() {
       const pos = await getCurrentLocation();
       setUserLocation(pos);
       setShowPopup(false);
-      toast.success('📍 Location mil gayi! Pumps fetch ho rahe hain...');
+      const acc = pos.accuracy ? ` (±${Math.round(pos.accuracy)}m accuracy)` : '';
+      toast.success(`📍 Location mil gayi!${acc}`);
     } catch (err) {
       setLocationError(err.message);
       setShowPopup(false);
@@ -212,6 +213,17 @@ export default function PumpList() {
                 <div className="ml-auto text-xs text-gray-400 flex items-center gap-1">
                   <FiMapPin size={11} />
                   {userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)}
+                  {userLocation.accuracy && (
+                    <span className="ml-1 bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded-full">
+                      ±{Math.round(userLocation.accuracy)}m
+                    </span>
+                  )}
+                  <a
+                    href={`https://www.google.com/maps?q=${userLocation.lat},${userLocation.lng}`}
+                    target="_blank" rel="noreferrer"
+                    className="ml-1 text-blue-400 hover:text-blue-600 underline">
+                    Verify
+                  </a>
                 </div>
               </>
             )}
